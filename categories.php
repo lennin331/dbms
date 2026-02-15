@@ -19,7 +19,8 @@ while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         <?php foreach($categories as $category): ?>
             <div class="product-card">
                 <div class="product-image">
-                    📋
+                                            <img src="small.webp" height="200" width="280" alt="Product Image">
+
                 </div>
                 <div class="product-info">
                     <div class="product-name"><?php echo htmlspecialchars($category['name']); ?></div>

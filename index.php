@@ -56,7 +56,7 @@ while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         <?php foreach($categories as $category): ?>
             <div class="product-card">
                 <div class="product-image">
-                    📋
+                    <img src="big.webp" height="200" width="280" alt="Product Image">
                 </div>
                 <div class="product-info">
                     <div class="product-name"><?php echo htmlspecialchars($category['name']); ?></div>
@@ -72,7 +72,7 @@ while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
     <h2 class="card-title">Why Choose Us?</h2>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
         <div style="text-align: center;">
-            <div style="font-size: 3rem; color: #667eea;">✓</div>
+            <div style="font-size: 3rem; wW: #667eea;">✓</div>
             <h3>100% Authentic</h3>
             <p style="color: #666;">All medications are sourced directly from licensed manufacturers</p>
         </div>
