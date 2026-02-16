@@ -183,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </p>
                 <p style="color: #666; margin-bottom: 2rem;">Redirecting to products page in <span id="countdown">3</span> seconds...</p>
                 <div style="display: flex; gap: 1rem; justify-content: center;">
-                    <a href="products.php" class="btn btn-primary">Go to Products Now</a>
+                    <a href="product.php" class="btn btn-primary">Go to Products Now</a>
                     <a href="orders.php" class="btn btn-secondary">View My Orders</a>
                 </div>
             </div>
@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (seconds <= 0) {
                     clearInterval(interval);
-                    window.location.href = 'index.php';
+                    window.location.href = 'categories.php';
                 }
             }, 1000);
             </script>
