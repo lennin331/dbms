@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (seconds <= 0) {
                     clearInterval(interval);
-                    window.location.href = 'products.php';
+                    window.location.href = 'index.php';
                 }
             }, 1000);
             </script>
