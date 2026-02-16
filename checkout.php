@@ -60,6 +60,7 @@ if (!empty($out_of_stock)) {
 
 $error = '';
 $success = '';
+$order_placed = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $shipping_address = trim($_POST['shipping_address'] ?? '');
@@ -98,10 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->exec('BEGIN TRANSACTION');
         
         try {
+            // Calculate final total with tax
+            $tax = $total * 0.1;
+            $cod_fee = ($payment_method === 'cod') ? 2 : 0;
+            $final_total = $total + $tax + $cod_fee;
+            
             // Create order
             $stmt = $conn->prepare("INSERT INTO orders (user_id, total_amount, status, shipping_address, payment_method) VALUES (:user_id, :total, 'pending', :address, :payment_method)");
             $stmt->bindValue(':user_id', $user_id, SQLITE3_INTEGER);
-            $stmt->bindValue(':total', $total, SQLITE3_FLOAT);
+            $stmt->bindValue(':total', $final_total, SQLITE3_FLOAT);
             $stmt->bindValue(':address', $shipping_address, SQLITE3_TEXT);
             $stmt->bindValue(':payment_method', $payment_method, SQLITE3_TEXT);
             $stmt->execute();
@@ -158,8 +164,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Clear the cart
             unset($_SESSION['cart']);
             
-            // Redirect to order confirmation
-            header('Location: order-confirmation.php?id=' . $order_id);
+            // Set success message and order placed flag
+            $order_placed = true;
+            $success = 'Your order has been placed successfully!';
+            
+            ?>
+            <!-- Show success message and redirect after 3 seconds -->
+            <div class="card" style="max-width: 600px; margin: 2rem auto; text-align: center;">
+                <div style="font-size: 5rem; color: #48bb78; margin-bottom: 1rem;">✓</div>
+                <h1 style="color: #333; margin-bottom: 1rem;">Order Successful!</h1>
+                <p style="color: #666; font-size: 1.1rem; margin-bottom: 2rem;">
+                    <?php echo htmlspecialchars($success); ?><br>
+                    Order #<?php echo str_pad($order_id, 6, '0', STR_PAD_LEFT); ?>
+                </p>
+                <p style="color: #666; margin-bottom: 2rem;">Redirecting to products page in <span id="countdown">3</span> seconds...</p>
+                <div style="display: flex; gap: 1rem; justify-content: center;">
+                    <a href="products.php" class="btn btn-primary">Go to Products Now</a>
+                    <a href="orders.php" class="btn btn-secondary">View My Orders</a>
+                </div>
+            </div>
+            
+            <script>
+            // Countdown and redirect
+            let seconds = 3;
+            const countdownEl = document.getElementById('countdown');
+            
+            const interval = setInterval(function() {
+                seconds--;
+                if (countdownEl) {
+                    countdownEl.textContent = seconds;
+                }
+                
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    window.location.href = 'products.php';
+                }
+            }, 1000);
+            </script>
+            
+            <?php
+            require_once 'footer.php';
             exit;
             
         } catch (Exception $e) {
@@ -168,6 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Only show the checkout form if order hasn't been placed
+if (!$order_placed):
 ?>
 
 <div class="card">
@@ -188,8 +235,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div style="font-weight: bold; color: #667eea;">Checkout</div>
         </div>
         <div style="text-align: center; flex: 1;">
-            <div style="width: 30px; height: 30px; background: #ddd; color: #666; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.5rem;">3</div>
-            <div style="color: #666;">Confirmation</div>
+            <div style="width: 30px; height: 30px; background: #48bb78; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.5rem;">✓</div>
+            <div style="color: #48bb78; font-weight: bold;">Success</div>
         </div>
     </div>
     
@@ -383,7 +430,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                     <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid #667eea;">
                         <span>Total:</span>
-                        <span style="color: #667eea;">$<?php echo number_format(($total * 1.1) + (($_POST['payment_method'] ?? '') === 'cod' ? 2 : 0), 2); ?></span>
+                        <span style="color: #667eea;">$<?php 
+                            $final_total = $total * 1.1;
+                            if (($_POST['payment_method'] ?? '') === 'cod') {
+                                $final_total += 2;
+                            }
+                            echo number_format($final_total, 2);
+                        ?></span>
                     </div>
                 </div>
                 
@@ -527,24 +580,12 @@ document.getElementById('checkout-form')?.addEventListener('submit', function(e)
     return true;
 });
 
-// Calculate total with COD fee
+// Update total display when payment method changes
 document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
     radio.addEventListener('change', function() {
-        if (this.value === 'cod') {
-            // Add COD fee to total display
-            const totalElement = document.querySelector('span[style*="color: #667eea"]');
-            if (totalElement) {
-                const currentTotal = <?php echo $total * 1.1; ?>;
-                totalElement.textContent = '$' + (currentTotal + 2).toFixed(2);
-            }
-        } else {
-            // Remove COD fee
-            const totalElement = document.querySelector('span[style*="color: #667eea"]');
-            if (totalElement) {
-                const currentTotal = <?php echo $total * 1.1; ?>;
-                totalElement.textContent = '$' + currentTotal.toFixed(2);
-            }
-        }
+        // Reload the page to update total with COD fee
+        // This is a simple approach - for a more dynamic approach, you'd use AJAX
+        location.reload();
     });
 });
 </script>
@@ -604,4 +645,7 @@ input[type="file"]:hover {
 }
 </style>
 
-<?php require_once 'footer.php'; ?>
+<?php 
+endif; // End of checkout form
+require_once 'footer.php'; 
+?>
