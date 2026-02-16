@@ -139,21 +139,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     mkdir($upload_dir, 0777, true);
                 }
                 
-                foreach ($_FILES['prescriptions']['tmp_name'] as $key => $tmp_name) {
-                    if ($_FILES['prescriptions']['error'][$key] === UPLOAD_ERR_OK) {
-                        $file_name = time() . '_' . $_FILES['prescriptions']['name'][$key];
-                        $file_path = $upload_dir . $file_name;
-                        
-                        if (move_uploaded_file($tmp_name, $file_path)) {
-                            $product_id = $_POST['prescription_product'][$key] ?? 0;
-                            $doctor_name = trim($_POST['doctor_name'][$key] ?? '');
+                if (isset($_FILES['prescriptions']['tmp_name']) && is_array($_FILES['prescriptions']['tmp_name'])) {
+                    foreach ($_FILES['prescriptions']['tmp_name'] as $key => $tmp_name) {
+                        if ($_FILES['prescriptions']['error'][$key] === UPLOAD_ERR_OK) {
+                            $file_name = time() . '_' . $_FILES['prescriptions']['name'][$key];
+                            $file_path = $upload_dir . $file_name;
                             
-                            $stmt = $conn->prepare("INSERT INTO prescriptions (user_id, product_id, prescription_file, doctor_name, status) VALUES (:user_id, :product_id, :file, :doctor, 'pending')");
-                            $stmt->bindValue(':user_id', $user_id, SQLITE3_INTEGER);
-                            $stmt->bindValue(':product_id', $product_id, SQLITE3_INTEGER);
-                            $stmt->bindValue(':file', $file_path, SQLITE3_TEXT);
-                            $stmt->bindValue(':doctor', $doctor_name, SQLITE3_TEXT);
-                            $stmt->execute();
+                            if (move_uploaded_file($tmp_name, $file_path)) {
+                                $product_id = $_POST['prescription_product'][$key] ?? 0;
+                                $doctor_name = trim($_POST['doctor_name'][$key] ?? '');
+                                $prescription_date = $_POST['prescription_date'][$key] ?? date('Y-m-d');
+                                
+                                $stmt = $conn->prepare("INSERT INTO prescriptions (user_id, product_id, prescription_file, doctor_name, prescription_date, status) VALUES (:user_id, :product_id, :file, :doctor, :date, 'pending')");
+                                $stmt->bindValue(':user_id', $user_id, SQLITE3_INTEGER);
+                                $stmt->bindValue(':product_id', $product_id, SQLITE3_INTEGER);
+                                $stmt->bindValue(':file', $file_path, SQLITE3_TEXT);
+                                $stmt->bindValue(':doctor', $doctor_name, SQLITE3_TEXT);
+                                $stmt->bindValue(':date', $prescription_date, SQLITE3_TEXT);
+                                $stmt->execute();
+                            }
                         }
                     }
                 }
@@ -287,7 +291,7 @@ if (!$order_placed):
                                     
                                     <div class="form-group">
                                         <label>Prescription Date:</label>
-                                        <input type="date" name="prescription_date[]" required>
+                                        <input type="date" name="prescription_date[]" required max="<?php echo date('Y-m-d'); ?>">
                                     </div>
                                 </div>
                             <?php endif; ?>
@@ -371,7 +375,7 @@ if (!$order_placed):
                     <!-- Cash on Delivery -->
                     <div style="margin-bottom: 1rem;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; padding: 1rem; background: <?php echo ($_POST['payment_method'] ?? '') === 'cod' ? '#e6e6ff' : 'white'; ?>; border-radius: 10px; border: 1px solid #ddd; cursor: pointer;">
-                            <input type="radio" name="payment_method" value="cod" <?php echo ($_POST['payment_method'] ?? '') === 'cod' ? 'checked' : ''; ?> onclick="togglePaymentFields()">
+                            <input type="radio" name="payment_method" value="cod" <?php echo ($_POST['payment_method'] ?? '') === 'cod' ? 'checked' : ''; ?> onclick="togglePaymentFields(); updateTotalDisplay();">
                             <span style="font-weight: 500; flex: 1;">Cash on Delivery</span>
                             <span style="font-size: 1.5rem;">💵</span>
                         </label>
@@ -396,20 +400,22 @@ if (!$order_placed):
             <div style="background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 3px 10px rgba(0,0,0,0.1); position: sticky; top: 1rem;">
                 <h2 style="color: #333; margin-bottom: 1rem; border-bottom: 2px solid #667eea; padding-bottom: 0.5rem;">Order Summary</h2>
                 
-                <?php foreach($cart_items as $item): ?>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eee;">
-                        <div style="flex: 2;">
-                            <div style="font-weight: 500;"><?php echo htmlspecialchars($item['name']); ?></div>
-                            <small style="color: #666;">Qty: <?php echo $item['cart_quantity']; ?> × $<?php echo number_format($item['price'], 2); ?></small>
-                            <?php if($item['prescription_required']): ?>
-                                <div style="color: #f56565; font-size: 0.75rem; margin-top: 0.25rem;">⚠️ Prescription Required</div>
-                            <?php endif; ?>
+                <div id="order-items">
+                    <?php foreach($cart_items as $item): ?>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eee;">
+                            <div style="flex: 2;">
+                                <div style="font-weight: 500;"><?php echo htmlspecialchars($item['name']); ?></div>
+                                <small style="color: #666;">Qty: <?php echo $item['cart_quantity']; ?> × $<?php echo number_format($item['price'], 2); ?></small>
+                                <?php if($item['prescription_required']): ?>
+                                    <div style="color: #f56565; font-size: 0.75rem; margin-top: 0.25rem;">⚠️ Prescription Required</div>
+                                <?php endif; ?>
+                            </div>
+                            <div style="font-weight: 500;">$<?php echo number_format($item['subtotal'], 2); ?></div>
                         </div>
-                        <div style="font-weight: 500;">$<?php echo number_format($item['subtotal'], 2); ?></div>
-                    </div>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </div>
                 
-                <div style="margin-top: 1rem;">
+                <div style="margin-top: 1rem;" id="total-summary">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                         <span>Subtotal:</span>
                         <span>$<?php echo number_format($total, 2); ?></span>
@@ -422,21 +428,13 @@ if (!$order_placed):
                         <span>Tax (10%):</span>
                         <span>$<?php echo number_format($total * 0.1, 2); ?></span>
                     </div>
-                    <?php if(($_POST['payment_method'] ?? '') === 'cod'): ?>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: #f56565;">
+                    <div id="cod-fee-row" style="display: none; justify-content: space-between; margin-bottom: 0.5rem; color: #f56565;">
                         <span>COD Fee:</span>
                         <span>$2.00</span>
                     </div>
-                    <?php endif; ?>
                     <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid #667eea;">
                         <span>Total:</span>
-                        <span style="color: #667eea;">$<?php 
-                            $final_total = $total * 1.1;
-                            if (($_POST['payment_method'] ?? '') === 'cod') {
-                                $final_total += 2;
-                            }
-                            echo number_format($final_total, 2);
-                        ?></span>
+                        <span id="total-amount" style="color: #667eea;">$<?php echo number_format($total * 1.1, 2); ?></span>
                     </div>
                 </div>
                 
@@ -461,6 +459,10 @@ if (!$order_placed):
 </div>
 
 <script>
+// Store the base total for calculations
+const baseTotal = <?php echo $total; ?>;
+const baseTotalWithTax = <?php echo $total * 1.1; ?>;
+
 function togglePaymentFields() {
     const cardFields = document.getElementById('card-fields');
     const upiFields = document.getElementById('upi-fields');
@@ -476,6 +478,22 @@ function togglePaymentFields() {
     } else {
         if (cardFields) cardFields.style.display = 'none';
         if (upiFields) upiFields.style.display = 'none';
+    }
+}
+
+function updateTotalDisplay() {
+    const codRadio = document.querySelector('input[value="cod"]');
+    const codFeeRow = document.getElementById('cod-fee-row');
+    const totalAmount = document.getElementById('total-amount');
+    
+    if (codRadio && codRadio.checked) {
+        // Show COD fee and add to total
+        codFeeRow.style.display = 'flex';
+        totalAmount.textContent = '$' + (baseTotalWithTax + 2).toFixed(2);
+    } else {
+        // Hide COD fee and use base total
+        codFeeRow.style.display = 'none';
+        totalAmount.textContent = '$' + baseTotalWithTax.toFixed(2);
     }
 }
 
@@ -506,12 +524,20 @@ document.getElementById('card_cvv')?.addEventListener('input', function(e) {
 // Auto-hide payment fields on page load
 document.addEventListener('DOMContentLoaded', function() {
     togglePaymentFields();
+    updateTotalDisplay();
     
     // Set minimum date for prescription date
     const dateInputs = document.querySelectorAll('input[type="date"]');
     const today = new Date().toISOString().split('T')[0];
     dateInputs.forEach(input => {
         input.max = today;
+    });
+    
+    // Add event listeners to all payment method radios
+    document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            updateTotalDisplay();
+        });
     });
 });
 
@@ -578,15 +604,6 @@ document.getElementById('checkout-form')?.addEventListener('submit', function(e)
     }
     
     return true;
-});
-
-// Update total display when payment method changes
-document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
-    radio.addEventListener('change', function() {
-        // Reload the page to update total with COD fee
-        // This is a simple approach - for a more dynamic approach, you'd use AJAX
-        location.reload();
-    });
 });
 </script>
 
